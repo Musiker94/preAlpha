@@ -366,6 +366,7 @@ class Stream:
 
     def __init__(self, parent, num_of_particles):
         self.__particles = []
+        self.__anomaly_of_ej = []
         orbit = parent.get_orbit()
         rc = 1.0
         dens = 1.9
@@ -382,6 +383,7 @@ class Stream:
             v0 = math.acos(v0)
             if random.random() < 0.5:
                 v0 = 2 * math.pi - v0
+            self.__anomaly_of_ej.append(v0)
             parent.set_anomaly(v0)
             [x30, vel30] = parent.get_position()
             cos_T = 1.0 - 2.0 * random.random()
@@ -409,9 +411,10 @@ class Stream:
         return self.__particles[item]
 
     def get_info(self):
-        info = np.zeros([len(self.__particles), 9])
+        info = np.zeros([len(self.__particles), 10])
         for count in range(0, len(self.__particles)):
             info[count, 0:8] = self.__particles[count].get_info()
             info[count, 8] = count + 1
+            info[count, 9] = self.__anomaly_of_ej[count]
 
         return info
