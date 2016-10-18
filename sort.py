@@ -2,6 +2,7 @@ import pandas as pd
 
 
 planets = pd.read_csv('planets.csv', ' ')
+planets = planets[planets.distance <= 0.1]
 unique = planets.number.unique()
 deaths = planets[planets.number == unique[0]]
 deaths = deaths[deaths.index == deaths.first_valid_index()]
