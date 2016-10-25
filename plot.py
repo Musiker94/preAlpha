@@ -1,5 +1,7 @@
 import pandas as pd
 import matplotlib
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 matplotlib.style.use('ggplot')
@@ -14,3 +16,8 @@ cx = ju.plot.scatter('year', 'distance', color='DarkRed', label='Jupiter', ax=bx
 ax = coor.plot('year', 'r', color='DarkGreen')
 bx = pl.plot.scatter('year', 'distance', color='DarkBlue', s=30, ax=ax)
 cx = jj.plot('year', 'r', color='DarkRed', label='Jupiter', ax=bx)
+
+data = pd.read_csv('DATA/Evolut/closer/coordinates.csv', ' ')
+data = data.sort_values('year')
+data = data[data.year >= 2680]
+data = data[data.year <= 2700]

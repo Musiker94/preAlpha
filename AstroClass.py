@@ -14,26 +14,42 @@ def mu(dim='solar system'):
 MU = mu()
 
 
-def true2mean_anomaly(eccentricity, true_anomaly):
-    """Converts the true anomaly into the mean anomaly. Dimension in radians!"""
-    ecc_anomaly = 2.0 * math.atan(math.sqrt((1.0 - eccentricity) / (1.0 + eccentricity)) * math.tan(true_anomaly / 2.0))
-    mean_anomaly = ecc_anomaly - eccentricity * math.sin(ecc_anomaly)
-    if mean_anomaly < 0:
-        mean_anomaly += 2 * math.pi
-    elif mean_anomaly >= 2 * math.pi:
-        mean_anomaly -= 2 * math.pi
-    return mean_anomaly
+def kepler(eccentricity, mean_anomaly):
+    """Solve Kepler's eq"""
+    cos = eccentricity * math.cos(mean_anomaly)
+    sin = eccentricity * math.sin(mean_anomaly)
+    psi = sin / math.sqrt(1.0 - cos - cos + eccentricity * eccentricity)
+    while True:
+        xi = math.cos(psi)
+        eta = math.sin(psi)
+        fd = (1.0 - cos * xi) + sin * eta
+        fdd = cos * eta + sin * xi
+        f = psi - fdd
+        psi -= f * fd / (fd * fd - 0.5 * f * fdd)
+        if f * f <= 1.0e-12:
+            break
+    return mean_anomaly + psi
 
 
-def mean2true_anomaly(eccentricity, mean_anomaly):
-    """Converts the mean anomaly into the true anomaly. Dimension in radians!"""
-    ecc_anomaly = 2.0 * math.atan(math.sqrt((1.0 + eccentricity) / (1.0 - eccentricity)) * math.tan(mean_anomaly / 2.0))
-    true_anomaly = ecc_anomaly - eccentricity * math.sin(ecc_anomaly)
+def mean2true_anomaly(axis, eccentricity, mean_anomaly):
+    """Converts the mean anomaly to the true anomaly. Dimension in radians!"""
+    ee = kepler(eccentricity, mean_anomaly)
+    r = axis * (1.0 - eccentricity * math.cos(ee))
+    sv = axis * math.sqrt(1.0 - eccentricity * eccentricity) * math.sin(ee) / r
+    cv = axis * (math.cos(ee) - eccentricity) / r
+    true_anomaly = math.atan2(sv, cv)
     if true_anomaly < 0:
         true_anomaly += 2 * math.pi
     elif true_anomaly >= 2 * math.pi:
         true_anomaly -= 2 * math.pi
     return true_anomaly
+
+
+def true2mean_anomaly(eccentricity, true_anomaly):
+    """Converts the true anomaly to the mean anomaly. Dimension in radians!"""
+    e = np.tan(true_anomaly / 2.0) * np.sqrt((1.0 - eccentricity) / (1.0 + eccentricity))
+    e = np.arctan(e) * 2.0
+    return e - eccentricity * np.sin(e)
 
 
 def descart2kepler(coordinates, velocities):
@@ -93,7 +109,7 @@ def descart2kepler(coordinates, velocities):
     return a, e, i, om, w, v
 
 
-def kepler2descart(elements, dim='deg'):
+def kepler2descart(elements, dim='deg', out_type='sep'):
     """Returns coordinates and velocities of the body
 
     :param elements: vector of Keplerian elements:
@@ -106,20 +122,32 @@ def kepler2descart(elements, dim='deg'):
     :param dim: sets the dimension of the angular values:
                 'deg' - degrees (default),
                 'rad' - radians
+    :param out_type: sets the type of output values:
+                'sep' - out two vectors: "coordinates" and "velocities"
+                'uni' - out one vector of six parameters
     :return: vector of coordinates and vector of velocities
 
     """
+    axis = elements[0]
+    eccentricity = elements[1]
+    inclination = elements[2]
+    node = elements[3]
+    perihelion = elements[4]
+    true_anomaly = elements[5]
     if dim == 'deg':
-        elements[2::] = np.radians(elements[2::])
+        inclination = math.radians(inclination)
+        node = math.radians(node)
+        perihelion = math.radians(perihelion)
+        true_anomaly = math.radians(true_anomaly)
 
-    u = elements[5] + elements[4]
-    par = elements[0] * (1.0 - math.pow(elements[1], 2))
-    par_div_r = 1 + elements[1] * math.cos(elements[5])
-    r = par / par_div_r
-    n = math.sqrt(MU / par)
-    vr = n * elements[1] * math.sin(elements[5])
-    vn = n * par_div_r
-    # v_sqr = MU * (2 * kep6[0] - r) / (r * kep6[0])
+    u = true_anomaly + perihelion
+    parameter = axis * (1.0 - eccentricity * eccentricity)
+    parameter_div_radius = 1 + eccentricity * math.cos(true_anomaly)
+    radius_vector = parameter / parameter_div_radius
+    n = math.sqrt(MU / parameter)
+    vr = n * eccentricity * math.sin(true_anomaly)
+    vn = n * parameter_div_radius
+    # v_sqr = MU * (2 * elements[0] - radius_vector) / (radius_vector * elements[0])
     p = []
     q = []
     coordinates = []
@@ -127,10 +155,10 @@ def kepler2descart(elements, dim='deg'):
 
     cos_u = math.cos(u)
     sin_u = math.sin(u)
-    cos_om = math.cos(elements[3])
-    sin_om = math.sin(elements[3])
-    cos_i = math.cos(elements[2])
-    sin_i = math.sin(elements[2])
+    cos_om = math.cos(node)
+    sin_om = math.sin(node)
+    cos_i = math.cos(inclination)
+    sin_i = math.sin(inclination)
 
     p.append(cos_u * cos_om - sin_u * sin_om * cos_i)
     p.append(cos_u * sin_om + sin_u * cos_om * cos_i)
@@ -138,16 +166,26 @@ def kepler2descart(elements, dim='deg'):
     q.append(-sin_u * cos_om - cos_u * sin_om * cos_i)
     q.append(-sin_u * sin_om + cos_u * cos_om * cos_i)
     q.append(cos_u * sin_i)
-    count = 0
-    while count != 3:
-        coordinates.append(r * p[count])
-        count += 1
 
-    count = 0
-    while count != 3:
+    for count in range(0, 3):
+        coordinates.append(radius_vector * p[count])
+
+    for count in range(0, 3):
         velocities.append(p[count] * vr + q[count] * vn)
-        count += 1
-    return coordinates, velocities
+
+    if out_type == 'sep':
+        return coordinates, velocities
+    elif out_type == 'uni':
+        out = np.zeros(6)
+        for count in range(0, 3):
+            out[count] = coordinates[count]
+
+        for count in range(3, 6):
+            out[count] = velocities[count - 3]
+
+        return out, radius_vector
+    else:
+        return 'Shit in kepler2descart out_type parameter'
 
 
 class Body:
@@ -196,7 +234,7 @@ class Body:
             self.__meanAnomaly = true2mean_anomaly(self.__eccentricity, v_m)
         elif anomaly == 'mean':
             self.__meanAnomaly = v_m
-            self.__trueAnomaly = mean2true_anomaly(self.__eccentricity, v_m)
+            self.__trueAnomaly = mean2true_anomaly(self.__semimajorAxis, self.__eccentricity, v_m)
 
         [self.__coordinates, self.__velocities] = kepler2descart([self.__semimajorAxis, self.__eccentricity,
                                                                   self.__inclination, self.__ascendingNode,
@@ -258,7 +296,7 @@ class Body:
             self.__meanAnomaly = true2mean_anomaly(self.__eccentricity, v_m)
         elif anomaly == 'mean':
             self.__meanAnomaly = v_m
-            self.__trueAnomaly = mean2true_anomaly(self.__eccentricity, v_m)
+            self.__trueAnomaly = mean2true_anomaly(self.__semimajorAxis, self.__eccentricity, v_m)
 
         [self.__coordinates, self.__velocities] = kepler2descart([self.__semimajorAxis, self.__eccentricity,
                                                                   self.__inclination, self.__ascendingNode,
@@ -391,7 +429,7 @@ class Stream:
             fi = 2.0 * math.pi * random.random()
             c = math.sqrt(1 / (dens * rpart * math.pow(np.dot(x30, x30), 9.0 / 8.0))
                           - 0.013 * rc) * math.sqrt(rc) * 656  # cm/sec
-            c = c * (6.68458712E-9 / 1.15740741)  # au/day
+            c *= (6.68458712E-9 / 1.15740741)  # au/day
             c3 = np.array([c * cos_T, c * sin_T * math.cos(fi), c * sin_T * math.sin(fi)])
             mark = descart2kepler(x30, np.array(vel30) + c3)
 
