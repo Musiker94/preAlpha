@@ -14,6 +14,15 @@ def mu(dim='solar system'):
 MU = mu()
 
 
+def local_min(array):
+    """Returns indexes of local minimums of an array"""
+    new = []
+    for count in range(1, len(array) - 1):
+        if (array[count - 1] > array[count]) and (array[count] < array[count + 1]):
+            new.append(count)
+    return np.array(new)
+
+
 def kepler(eccentricity, mean_anomaly):
     """Solve Kepler's eq"""
     cos = eccentricity * math.cos(mean_anomaly)
